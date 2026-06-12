@@ -1,15 +1,17 @@
 <?php declare(strict_types=1);
 namespace Gratis\SEO\CLI;
 
-final class SEOCommand
-{
+final class SEOCommand {
+
     /**
      * Audit SEO for the site.
      * [<url>] : Specific URL to audit.
      * @when after_wp_load
+     *
+     * @param array<int,string>    $args       Positional args.
+     * @param array<string,string> $assoc_args Associative args (unused; required by WP-CLI).
      */
-    public function audit($args, $assoc_args): void
-    {
+    public function audit($args, $assoc_args): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- WP-CLI signature.
         $url = $args[0] ?? home_url('/');
         \WP_CLI::log("Auditing: {$url}");
 
@@ -23,7 +25,7 @@ final class SEOCommand
         preg_match('/<title>([^<]*)<\/title>/', $html, $m);
         $title = $m[1] ?? '';
         if (!$title) $issues[] = 'Missing title tag';
-        elseif (strlen($title) > 60) $issues[] = "Title too long (" . strlen($title) . " chars)";
+        elseif (strlen($title) > 60) $issues[] = 'Title too long (' . strlen($title) . ' chars)';
 
         // Meta description
         if (!preg_match('/name=["\']description["\']/', $html)) $issues[] = 'Missing meta description';
@@ -47,20 +49,22 @@ final class SEOCommand
         if ($issues) {
             foreach ($issues as $i) \WP_CLI::log("  ✗ {$i}");
         } else {
-            \WP_CLI::success("No issues found.");
+            \WP_CLI::success('No issues found.');
         }
     }
 
     /**
      * Generate sitemap.
      * @when after_wp_load
+     *
+     * @param array<int,string>    $args       Positional args (unused; required by WP-CLI).
+     * @param array<string,string> $assoc_args Associative args (unused; required by WP-CLI).
      */
-    public function sitemap($args, $assoc_args): void
-    {
+    public function sitemap($args, $assoc_args): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed -- WP-CLI signature.
         $pages = wp_count_posts('page')->publish;
         $posts = wp_count_posts('post')->publish;
-        \WP_CLI::log("Sitemap available at: " . home_url('/sitemap.xml'));
+        \WP_CLI::log('Sitemap available at: ' . home_url('/sitemap.xml'));
         \WP_CLI::log("Pages: {$pages} | Posts: {$posts}");
-        \WP_CLI::success("Sitemap is auto-generated on request.");
+        \WP_CLI::success('Sitemap is auto-generated on request.');
     }
 }
