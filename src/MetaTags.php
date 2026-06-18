@@ -114,7 +114,13 @@ final class MetaTags {
                 if ('' !== trim((string) $post->post_excerpt)) {
                     return wp_strip_all_tags((string) $post->post_excerpt);
                 }
-                return wp_trim_words(wp_strip_all_tags((string) $post->post_content), 30);
+                $content_desc = wp_trim_words(wp_strip_all_tags((string) $post->post_content), 30);
+                if ('' !== trim($content_desc)) {
+                    return $content_desc;
+                }
+                // Empty excerpt and content (e.g. a block-built static front
+                // page): fall through to the front-page / tagline fallback so
+                // we never emit an empty description.
             }
         }
 

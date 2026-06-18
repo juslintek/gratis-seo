@@ -26,6 +26,12 @@ require_once __DIR__ . '/autoload.php';
 add_action('wp_head', [\Gratis\SEO\MetaTags::class, 'output'], 1);
 add_action('wp_head', [\Gratis\SEO\Schema::class, 'output'], 2);
 
+// Gratis SEO is the single source of truth for the canonical URL, so drop
+// WordPress core's rel_canonical (otherwise singular/front pages emit two
+// <link rel="canonical">). Core registers it in default-filters.php at load,
+// before plugins, so this removal takes effect.
+remove_action('wp_head', 'rel_canonical');
+
 // Document title rewriting.
 add_filter('document_title_separator', [\Gratis\SEO\MetaTags::class, 'title_separator']);
 add_filter('document_title_parts', [\Gratis\SEO\MetaTags::class, 'title_parts']);
