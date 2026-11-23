@@ -25,6 +25,7 @@ final class Schema {
             self::website(),
             self::breadcrumbs(),
             self::primary_entity(),
+            self::faq_page(),
         ]));
 
         /**
@@ -43,8 +44,78 @@ final class Schema {
         ];
 
         echo '<script type="application/ld+json">'
-            . wp_json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+            . wp_json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG)
             . '</script>' . "\n";
+    }
+
+    /**
+     * Extract FAQPage JSON-LD from native HTML <details><summary> blocks (such
+     * as core/details) in the current post content so structured data always
+     * matches visible page copy without hardcoding site-specific text.
+     *
+     * @return array<string,mixed>|null
+     */
+    public static function extract_faq_from_html(string $html): ?array {
+        if ('' === $html || false === stripos($html, '<details')) {
+            return null;
+        }
+
+        if (!preg_match_all('/<details\b[^>]*>(?:(?!<\/details>).)*?<summary\b[^>]*>(.*?)<\/summary>(.*?)<\/details>/is', $html, $matches, PREG_SET_ORDER)) {
+            return null;
+        }
+
+        $normalize = static function (string $fragment): string {
+            // Preserve word boundaries across adjacent block elements (e.g. </p><p>).
+            $spaced  = preg_replace('/<\/?(?:p|div|li|br|h[1-6]|blockquote|tr|td|th)\b[^>]*>/i', ' ', $fragment) ?? $fragment;
+            $plain   = wp_strip_all_tags($spaced);
+            $decoded = html_entity_decode($plain, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            return trim(preg_replace('/\s+/u', ' ', $decoded) ?? '');
+        };
+
+        $entities = [];
+        foreach ($matches as $match) {
+            $question = $normalize($match[1]);
+            $answer   = $normalize($match[2]);
+            if ('' === $question || '' === $answer) {
+                continue;
+            }
+            $entities[] = [
+                '@type'          => 'Question',
+                'name'           => $question,
+                'acceptedAnswer' => [
+                    '@type' => 'Answer',
+                    'text'  => $answer,
+                ],
+            ];
+        }
+
+        if (empty($entities)) {
+            return null;
+        }
+
+        return [
+            '@type'      => 'FAQPage',
+            'mainEntity' => $entities,
+        ];
+    }
+
+    /**
+     * Build FAQPage schema node for the current singular post if it contains
+     * FAQ accordion (<details><summary>) markup.
+     *
+     * @return array<string,mixed>|null
+     */
+    private static function faq_page(): ?array {
+        if (!is_singular()) {
+            return null;
+        }
+
+        $post = get_post((int) get_queried_object_id());
+        if (!$post instanceof \WP_Post) {
+            return null;
+        }
+
+        return self::extract_faq_from_html((string) $post->post_content);
     }
 
     /**
@@ -86,11 +157,16 @@ final class Schema {
     }
 
     /**
-     * The WebSite node with a search action.
+     * The WebSite node with a filterable SearchAction URL template.
      *
      * @return array<string,mixed>
      */
     private static function website(): array {
+        $search_url = (string) apply_filters(
+            'gratis_seo_search_url_template',
+            home_url('/?s={search_term_string}')
+        );
+
         return [
             '@type'           => 'WebSite',
             '@id'             => home_url('/#website'),
@@ -102,7 +178,7 @@ final class Schema {
                 '@type'       => 'SearchAction',
                 'target'      => [
                     '@type'       => 'EntryPoint',
-                    'urlTemplate' => home_url('/?s={search_term_string}'),
+                    'urlTemplate' => $search_url,
                 ],
                 'query-input' => 'required name=search_term_string',
             ],
