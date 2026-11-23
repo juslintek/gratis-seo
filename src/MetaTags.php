@@ -57,10 +57,17 @@ final class MetaTags {
         $url   = self::get_canonical_url();
         $image = self::get_image();
 
-        // Robots.
-        $robots = self::get_robots();
-        if ('' !== $robots) {
-            echo '<meta name="robots" content="' . esc_attr($robots) . '">' . "\n";
+        // Meta description.
+        if ('' !== $desc) {
+            echo '<meta name="description" content="' . esc_attr($desc) . '">' . "\n";
+        }
+
+        // Robots (skip standalone tag when WP core wp_robots is active; handled via filter_robots()).
+        if (!function_exists('has_filter') || !has_filter('wp_head', 'wp_robots')) {
+            $robots = self::get_robots();
+            if ('' !== $robots) {
+                echo '<meta name="robots" content="' . esc_attr($robots) . '">' . "\n";
+            }
         }
 
         // Canonical.
@@ -68,12 +75,16 @@ final class MetaTags {
             echo '<link rel="canonical" href="' . esc_url($url) . '">' . "\n";
         }
 
-        // Open Graph.
+        // Open Graph (valid OGP built-in types: article for single posts, website otherwise).
         $og_type = is_singular('post') ? 'article' : 'website';
         echo '<meta property="og:type" content="' . esc_attr($og_type) . '">' . "\n";
         echo '<meta property="og:title" content="' . esc_attr($title) . '">' . "\n";
-        echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
-        echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
+        if ('' !== $desc) {
+            echo '<meta property="og:description" content="' . esc_attr($desc) . '">' . "\n";
+        }
+        if ('' !== $url) {
+            echo '<meta property="og:url" content="' . esc_url($url) . '">' . "\n";
+        }
         echo '<meta property="og:site_name" content="' . esc_attr((string) get_bloginfo('name')) . '">' . "\n";
         echo '<meta property="og:locale" content="' . esc_attr(self::get_locale()) . '">' . "\n";
         if ('' !== $image) {
@@ -88,7 +99,9 @@ final class MetaTags {
         // Twitter Card.
         echo '<meta name="twitter:card" content="' . esc_attr($image ? 'summary_large_image' : 'summary') . '">' . "\n";
         echo '<meta name="twitter:title" content="' . esc_attr($title) . '">' . "\n";
-        echo '<meta name="twitter:description" content="' . esc_attr($desc) . '">' . "\n";
+        if ('' !== $desc) {
+            echo '<meta name="twitter:description" content="' . esc_attr($desc) . '">' . "\n";
+        }
         $twitter_site = Settings::get_string('twitter_site');
         if ('' !== $twitter_site) {
             echo '<meta name="twitter:site" content="' . esc_attr($twitter_site) . '">' . "\n";
@@ -99,8 +112,8 @@ final class MetaTags {
     }
 
     /**
-     * Resolve the meta description: per-post override, then excerpt/content,
-     * then global home description, then the site tagline.
+     * Resolve the meta description: per-post override, then front-page
+     * home_description setting, then excerpt/content, then the site tagline.
      */
     private static function get_description(): string {
         if (is_singular()) {
@@ -109,7 +122,19 @@ final class MetaTags {
             if ('' !== $custom) {
                 return $custom;
             }
-            $post = get_post($post_id);
+        }
+
+        // Static front pages satisfy both is_front_page() and is_singular(), so
+        // honor the explicit home_description setting before scraping block HTML.
+        if (is_front_page()) {
+            $home = Settings::get_string('home_description');
+            if ('' !== $home) {
+                return $home;
+            }
+        }
+
+        if (is_singular()) {
+            $post = get_post((int) get_queried_object_id());
             if ($post instanceof \WP_Post) {
                 if ('' !== trim((string) $post->post_excerpt)) {
                     return wp_strip_all_tags((string) $post->post_excerpt);
@@ -119,15 +144,46 @@ final class MetaTags {
                     return $content_desc;
                 }
                 // Empty excerpt and content (e.g. a block-built static front
-                // page): fall through to the front-page / tagline fallback so
-                // we never emit an empty description.
+                // page): fall through to the site tagline so we never emit an
+                // empty description.
             }
         }
 
-        if (is_front_page()) {
-            $home = Settings::get_string('home_description');
-            if ('' !== $home) {
-                return $home;
+        // Blog page (page_for_posts): read its per-post SEO description.
+        if (is_home()) {
+            $page_id = (int) get_option('page_for_posts');
+            if ($page_id > 0) {
+                $custom = (string) get_post_meta($page_id, MetaBox::KEY_DESC, true);
+                if ('' !== $custom) {
+                    return $custom;
+                }
+            }
+        }
+
+        // CPT archives: look up a page whose slug matches the archive rewrite
+        // slug and read its per-post SEO description override.
+        if (is_post_type_archive()) {
+            $post_type = (string) get_query_var('post_type');
+            $obj       = get_post_type_object($post_type);
+            if ($obj instanceof \WP_Post_Type) {
+                $rewrite      = $obj->rewrite;
+                $archive_slug = is_array($rewrite) && isset($rewrite['slug'])
+                    ? (string) $rewrite['slug']
+                    : $post_type;
+                $pages = get_posts([
+                    'post_type'              => 'page',
+                    'name'                   => $archive_slug,
+                    'numberposts'            => 1,
+                    'no_found_rows'          => true,
+                    'update_post_meta_cache' => false,
+                    'update_post_term_cache' => false,
+                ]);
+                if (!empty($pages) && $pages[0] instanceof \WP_Post) {
+                    $custom = (string) get_post_meta($pages[0]->ID, MetaBox::KEY_DESC, true);
+                    if ('' !== $custom) {
+                        return $custom;
+                    }
+                }
             }
         }
 
@@ -148,6 +204,15 @@ final class MetaTags {
         }
 
         if (is_front_page()) {
+            return home_url('/');
+        }
+
+        if (is_home()) {
+            $page_for_posts = (int) get_option('page_for_posts');
+            if ($page_for_posts > 0) {
+                $link = get_permalink($page_for_posts);
+                return is_string($link) ? $link : home_url('/blog/');
+            }
             return home_url('/');
         }
 
@@ -185,9 +250,39 @@ final class MetaTags {
     }
 
     /**
-     * Build the robots meta value from per-post directives.
+     * Merge Gratis SEO robots directives into WordPress core's wp_robots array
+     * so the document emits a single canonical <meta name="robots"> tag.
+     *
+     * @param array<string,bool|string> $robots Existing WordPress robots directives.
+     * @return array<string,bool|string>
      */
-    private static function get_robots(): string {
+    public static function filter_robots(array $robots): array {
+        foreach (self::get_robots_directives() as $directive) {
+            if ('noindex' === $directive) {
+                unset($robots['index']);
+                $robots['noindex'] = true;
+            } elseif ('nofollow' === $directive) {
+                unset($robots['follow']);
+                $robots['nofollow'] = true;
+            } elseif ('index' === $directive) {
+                unset($robots['noindex']);
+                $robots['index'] = true;
+            } elseif ('follow' === $directive) {
+                unset($robots['nofollow']);
+                $robots['follow'] = true;
+            } elseif ('' !== $directive) {
+                $robots[$directive] = true;
+            }
+        }
+        return $robots;
+    }
+
+    /**
+     * Collect sanitized robots directives for the current request.
+     *
+     * @return list<string>
+     */
+    private static function get_robots_directives(): array {
         $directives = [];
 
         if (is_singular()) {
@@ -214,7 +309,14 @@ final class MetaTags {
          */
         $directives = (array) apply_filters('gratis_seo_robots', $directives);
 
-        return implode(', ', array_map('sanitize_text_field', $directives));
+        return array_values(array_filter(array_map('sanitize_text_field', $directives), static fn(string $d): bool => '' !== $d));
+    }
+
+    /**
+     * Build the robots meta value from per-post directives.
+     */
+    private static function get_robots(): string {
+        return implode(', ', self::get_robots_directives());
     }
 
     /**

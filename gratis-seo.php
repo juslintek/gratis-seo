@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Gratis SEO
  * Plugin URI: https://github.com/juslintek/gratis-seo
- * Description: Comprehensive SEO toolkit. Meta tags, Open Graph, JSON-LD structured data, breadcrumbs and an XML sitemap. Replaces Yoast/RankMath ($49-99/yr).
+ * Description: Comprehensive SEO toolkit. Meta tags, Open Graph, JSON-LD structured data, breadcrumbs and an XML sitemap.
  * Version: 1.0.0
  * Requires at least: 6.4
  * Requires PHP: 8.1
@@ -32,9 +32,10 @@ add_action('wp_head', [\Gratis\SEO\Schema::class, 'output'], 2);
 // before plugins, so this removal takes effect.
 remove_action('wp_head', 'rel_canonical');
 
-// Document title rewriting.
+// Document title rewriting & robots integration.
 add_filter('document_title_separator', [\Gratis\SEO\MetaTags::class, 'title_separator']);
 add_filter('document_title_parts', [\Gratis\SEO\MetaTags::class, 'title_parts']);
+add_filter('wp_robots', [\Gratis\SEO\MetaTags::class, 'filter_robots'], 20);
 
 // Sitemap + breadcrumbs.
 add_action('init', [\Gratis\SEO\Sitemap::class, 'register']);
