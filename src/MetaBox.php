@@ -26,9 +26,10 @@ final class MetaBox {
      * Register typed post meta (REST-exposed) for the public post types.
      */
     public static function register_meta(): void {
-        $auth_callback = static function (bool $allowed, string $meta_key, int $object_id = 0): bool {
+        $auth_callback = static function ($allowed, string $meta_key, $object_id = 0): bool {
             unset($allowed, $meta_key);
-            return $object_id > 0 ? current_user_can('edit_post', $object_id) : current_user_can('edit_posts');
+            $post_id = (int) $object_id;
+            return $post_id > 0 ? current_user_can('edit_post', $post_id) : current_user_can('edit_posts');
         };
 
         $text_keys = [self::KEY_TITLE, self::KEY_DESC];
@@ -80,9 +81,11 @@ final class MetaBox {
 
     /**
      * Enqueue meta box styles cleanly on post editor screens.
+     *
+     * @param mixed $hook_suffix Current admin page hook suffix.
      */
-    public static function enqueue_styles(string $hook_suffix): void {
-        if (!in_array($hook_suffix, ['post.php', 'post-new.php'], true)) {
+    public static function enqueue_styles($hook_suffix = ''): void {
+        if (!is_string($hook_suffix) || !in_array($hook_suffix, ['post.php', 'post-new.php'], true)) {
             return;
         }
         wp_add_inline_style(
@@ -164,7 +167,7 @@ final class MetaBox {
      * @param int $post_id Saved post ID.
      */
     public static function save(int $post_id): void {
-        if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) {
+        if ((defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) || (function_exists('wp_is_post_revision') && wp_is_post_revision($post_id))) {
             return;
         }
 
