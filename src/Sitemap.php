@@ -12,7 +12,28 @@ defined('ABSPATH') || exit;
 final class Sitemap {
 
     public static function register(): void {
-        add_action('template_redirect', [__CLASS__, 'serve']);
+        add_filter('pre_handle_404', [__CLASS__, 'bypass_core_redirect'], 1);
+        add_action('template_redirect', [__CLASS__, 'serve'], 1);
+    }
+
+    /**
+     * Prevent WordPress 6.4-6.6 core WP_Sitemaps::redirect_sitemapxml() from
+     * hijacking /sitemap.xml on pre_handle_404 before template_redirect fires.
+     */
+    public static function bypass_core_redirect(mixed $bypass): mixed {
+        if ($bypass || !Settings::get_bool('enable_sitemap', true)) {
+            return $bypass;
+        }
+        return self::is_sitemap_request() ? true : $bypass;
+    }
+
+    private static function is_sitemap_request(): bool {
+        $request = isset($_SERVER['REQUEST_URI'])
+            ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI']))
+            : '';
+        $path = (string) wp_parse_url($request, PHP_URL_PATH);
+        $target = (string) wp_parse_url(home_url('/sitemap.xml'), PHP_URL_PATH);
+        return '' !== $target && $target === $path;
     }
 
     public static function serve(): void {
@@ -20,11 +41,7 @@ final class Sitemap {
             return;
         }
 
-        $request = isset($_SERVER['REQUEST_URI'])
-            ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI']))
-            : '';
-        $path = (string) wp_parse_url($request, PHP_URL_PATH);
-        if ('/sitemap.xml' !== $path) {
+        if (!self::is_sitemap_request()) {
             return;
         }
 
