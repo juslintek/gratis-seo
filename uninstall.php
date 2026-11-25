@@ -2,13 +2,20 @@
 /**
  * Uninstall gratis-seo.
  *
- * Removes all plugin data: options, custom tables, and scheduled events.
+ * Removes all plugin options and post meta.
  */
 
 defined('WP_UNINSTALL_PLUGIN') || exit;
 
-global $wpdb;
+delete_option('gratis_seo_settings');
 
-// Remove plugin options.
-// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-$wpdb->query($wpdb->prepare("DELETE FROM {$wpdb->options} WHERE option_name LIKE %s", 'gratis_seo_%'));
+foreach ([
+    '_gratis_seo_title',
+    '_gratis_seo_desc',
+    '_gratis_seo_canonical',
+    '_gratis_seo_noindex',
+    '_gratis_seo_nofollow',
+    '_gratis_seo_og_image',
+] as $gratis_seo_meta_key) {
+    delete_post_meta_by_key($gratis_seo_meta_key);
+}

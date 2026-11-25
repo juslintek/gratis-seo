@@ -42,7 +42,7 @@ Yes. Everything is free — no "Pro" version, no locked features, and no nag scr
 
 = Does this plugin make external HTTP requests? =
 
-No. Unless you explicitly configure an external service (such as a CDN or SMTP host), the plugin does not phone home or send analytics.
+No. Gratis SEO does not phone home, load external scripts, or send analytics. The optional WP-CLI `wp gratis-seo audit` command fetches only the URL you explicitly pass on the command line.
 
 = Where do I get support? =
 

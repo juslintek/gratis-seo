@@ -28,6 +28,7 @@ final class Sitemap {
             return;
         }
 
+        status_header(200);
         header('Content-Type: application/xml; charset=UTF-8');
         header('X-Robots-Tag: noindex, follow');
 
@@ -40,7 +41,7 @@ final class Sitemap {
         // Pages.
         $pages = get_posts(['post_type' => 'page', 'post_status' => 'publish', 'numberposts' => -1]);
         foreach ($pages as $page) {
-            if ((int) get_option('page_on_front') === $page->ID) {
+            if ((int) get_option('page_on_front') === $page->ID || get_post_meta($page->ID, MetaBox::KEY_NOINDEX, true)) {
                 continue;
             }
             $out .= self::url((string) get_permalink($page), (string) get_the_modified_date('c', $page), 'weekly', '0.8');
@@ -50,6 +51,9 @@ final class Sitemap {
         // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_numberposts -- bounded sitemap cap.
         $posts = get_posts(['post_type' => 'post', 'post_status' => 'publish', 'numberposts' => 1000]);
         foreach ($posts as $post) {
+            if (get_post_meta($post->ID, MetaBox::KEY_NOINDEX, true)) {
+                continue;
+            }
             $out .= self::url((string) get_permalink($post), (string) get_the_modified_date('c', $post), 'monthly', '0.6');
         }
 
@@ -59,6 +63,9 @@ final class Sitemap {
             // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_numberposts -- bounded sitemap cap.
             $items = get_posts(['post_type' => $cpt, 'post_status' => 'publish', 'numberposts' => 500]);
             foreach ($items as $item) {
+                if (get_post_meta($item->ID, MetaBox::KEY_NOINDEX, true)) {
+                    continue;
+                }
                 $out .= self::url((string) get_permalink($item), (string) get_the_modified_date('c', $item), 'monthly', '0.5');
             }
         }

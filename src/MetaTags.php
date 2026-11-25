@@ -217,8 +217,12 @@ final class MetaTags {
         }
 
         if (is_category() || is_tag() || is_tax()) {
-            $link = get_term_link(get_queried_object());
-            return is_string($link) ? $link : '';
+            $term = get_queried_object();
+            if ($term instanceof \WP_Term) {
+                $link = get_term_link($term);
+                return is_string($link) ? $link : '';
+            }
+            return '';
         }
 
         if (is_post_type_archive()) {
