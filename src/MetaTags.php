@@ -278,6 +278,24 @@ final class MetaTags {
                 $robots[$directive] = true;
             }
         }
+        $is_front    = (function_exists('is_front_page') && is_front_page()) || (function_exists('is_home') && is_home());
+        $blog_public = function_exists('get_option') ? (string) get_option('blog_public', '1') : '1';
+        if (
+            $is_front
+            && function_exists('wc_page_no_robots')
+            && !empty($robots['noindex'])
+            && '0' !== $blog_public
+            && !(function_exists('is_cart') && is_cart())
+            && !(function_exists('is_checkout') && is_checkout())
+            && !(function_exists('is_account_page') && is_account_page())
+            && !(function_exists('is_wc_endpoint_url') && is_wc_endpoint_url())
+        ) {
+            $post_id = function_exists('get_queried_object_id') ? (int) get_queried_object_id() : 0;
+            if ($post_id <= 0 || !function_exists('get_post_meta') || !get_post_meta($post_id, MetaBox::KEY_NOINDEX, true)) {
+                unset($robots['noindex']);
+            }
+        }
+
         return $robots;
     }
 
