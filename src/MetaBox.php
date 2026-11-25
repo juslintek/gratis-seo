@@ -26,8 +26,13 @@ final class MetaBox {
      * Register typed post meta (REST-exposed) for the public post types.
      */
     public static function register_meta(): void {
-        $string_keys = [self::KEY_TITLE, self::KEY_DESC, self::KEY_CANONICAL, self::KEY_OG_IMAGE];
-        foreach ($string_keys as $key) {
+        $auth_callback = static function (bool $allowed, string $meta_key, int $object_id = 0): bool {
+            unset($allowed, $meta_key);
+            return $object_id > 0 ? current_user_can('edit_post', $object_id) : current_user_can('edit_posts');
+        };
+
+        $text_keys = [self::KEY_TITLE, self::KEY_DESC];
+        foreach ($text_keys as $key) {
             register_post_meta(
                 '',
                 $key,
@@ -36,9 +41,22 @@ final class MetaBox {
                     'single'            => true,
                     'show_in_rest'      => true,
                     'sanitize_callback' => 'sanitize_text_field',
-                    'auth_callback'     => static function (): bool {
-                        return current_user_can('edit_posts');
-                    },
+                    'auth_callback'     => $auth_callback,
+                ]
+            );
+        }
+
+        $url_keys = [self::KEY_CANONICAL, self::KEY_OG_IMAGE];
+        foreach ($url_keys as $key) {
+            register_post_meta(
+                '',
+                $key,
+                [
+                    'type'              => 'string',
+                    'single'            => true,
+                    'show_in_rest'      => true,
+                    'sanitize_callback' => 'esc_url_raw',
+                    'auth_callback'     => $auth_callback,
                 ]
             );
         }
@@ -54,12 +72,23 @@ final class MetaBox {
                     'sanitize_callback' => static function ($value): bool {
                         return (bool) $value;
                     },
-                    'auth_callback'     => static function (): bool {
-                        return current_user_can('edit_posts');
-                    },
+                    'auth_callback'     => $auth_callback,
                 ]
             );
         }
+    }
+
+    /**
+     * Enqueue meta box styles cleanly on post editor screens.
+     */
+    public static function enqueue_styles(string $hook_suffix): void {
+        if (!in_array($hook_suffix, ['post.php', 'post-new.php'], true)) {
+            return;
+        }
+        wp_add_inline_style(
+            'common',
+            '.gseo-field{margin:0 0 16px}.gseo-field label{font-weight:600;display:block;margin-bottom:4px}.gseo-field input[type=text],.gseo-field textarea{width:100%}.gseo-field .description{color:#646970}.gseo-count{float:right;color:#646970;font-weight:400}'
+        );
     }
 
     /**
@@ -96,8 +125,6 @@ final class MetaBox {
         $noindex   = (int) get_post_meta($post->ID, self::KEY_NOINDEX, true);
         $nofollow  = (int) get_post_meta($post->ID, self::KEY_NOFOLLOW, true);
         $og_image  = (string) get_post_meta($post->ID, self::KEY_OG_IMAGE, true);
-
-        echo '<style>.gseo-field{margin:0 0 16px}.gseo-field label{font-weight:600;display:block;margin-bottom:4px}.gseo-field input[type=text],.gseo-field textarea{width:100%}.gseo-field .description{color:#646970}.gseo-count{float:right;color:#646970;font-weight:400}</style>';
 
         echo '<div class="gseo-field">';
         echo '<label for="gseo_title">' . esc_html__('SEO title', 'gratis-seo') . '</label>';

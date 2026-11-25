@@ -1,6 +1,8 @@
 <?php declare(strict_types=1);
 namespace Gratis\SEO\CLI;
 
+defined('ABSPATH') || exit;
+
 final class SEOCommand {
 
     /**
@@ -15,7 +17,7 @@ final class SEOCommand {
         $url = $args[0] ?? home_url('/');
         \WP_CLI::log("Auditing: {$url}");
 
-        $response = wp_remote_get($url, ['timeout' => 15, 'sslverify' => false]);
+        $response = wp_remote_get($url, ['timeout' => 15]);
         if (is_wp_error($response)) { \WP_CLI::error($response->get_error_message()); }
 
         $html = wp_remote_retrieve_body($response);

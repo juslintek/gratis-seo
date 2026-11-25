@@ -44,6 +44,7 @@ add_action('init', [\Gratis\SEO\Breadcrumbs::class, 'register']);
 // Post meta + meta box.
 add_action('init', [\Gratis\SEO\MetaBox::class, 'register_meta']);
 add_action('add_meta_boxes', [\Gratis\SEO\MetaBox::class, 'register']);
+add_action('admin_enqueue_scripts', [\Gratis\SEO\MetaBox::class, 'enqueue_styles']);
 add_action('save_post', [\Gratis\SEO\MetaBox::class, 'save']);
 
 // Settings page.
